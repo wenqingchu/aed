@@ -8,7 +8,7 @@
 
 
 %% Parameters 
-% 360 640
+% 238 158 UCSDped1
 params.H = 120;       % loaded video height size
 params.W = 160;       % loaded video width size
 params.patchWin = 10; % 3D patch spatial size 
@@ -28,14 +28,14 @@ tprLen = params.tprLen;
 BKH = params.BKH;
 BKW = params.BKW;
 PCAdim = params.PCAdim;
-testFileNum = 21;
+testFileNum = 36;
 
 addpath('functions')
-addpath('data')
+addpath('dataset')
 
 %% Training feature generation (abotu 1 minute)
  tic;
-fileName = 'data/training_vol';
+fileName = 'dataset/UCSD_Anomaly_Dataset/UCSDped1/training_vol';
 numEachVol = 7000; % The maximum sample number in each training video is 7000 
 trainVolDirs = name_filtering(fileName); 
 Cmatrix = zeros(tprLen*patchWin^2, length(trainVolDirs)*numEachVol);
@@ -55,7 +55,7 @@ feaMatPCA = Tw*Cmatrix;
 save('data/sparse_combinations/Tw.mat','Tw');
  toc;
 
-%% Sparse combination learning  (about 4 minutes)
+% Sparse combination learning  (about 4 minutes)
 tic;
 D = sparse_combination(feaMatPCA, 20, 0.1);
 %   D = sparse_combination(X, Dim, Thr) learns sparse combination 
@@ -84,7 +84,7 @@ fileNumAll = 0;
 timeAll = 0;
 for idx = 1 : testFileNum 
     
-    load(['data/testing_vol/vol', sprintf('%.2d',idx), '.mat']); 
+    load(['dataset/UCSD_Anomaly_Dataset/UCSDped1/testing_vol/vol', sprintf('%.2d',idx), '.mat']); 
     imgVol = im2double(vol);
     t1 = tic;
     volBlur = imgVol; 
@@ -112,58 +112,29 @@ end
 fprintf('average FPS is %d \n', round(fileNumAll/timeAll));
 
 
-%% Accuracy result 
+
+%% frame accuracy
 optThr = 0.08;
 overlapThr = 0.3;
 acc = zeros(1, testFileNum);
-
-testFrameNum = 0;
+gt = zeros(1, testFileNum*200);
+predict = zeros(1, testFileNum*200);
 for idx = 1 : testFileNum
-    testFrameNum = testFrameNum + size(volLabel{1});
-end
-
-gt = zeros(1, testFrameNum);
-predict = zeros(1, testFrameNum);
-kk_index = 0;
-for idx = 1 : testFileNum
-    
-    load(['data/testing_label_mask/', num2str(idx), '_label.mat'], 'volLabel');
+    load(['dataset/UCSD_Anomaly_Dataset/UCSDped1/testing_label/', num2str(idx), '_label.mat'], 'volLabel');
     load(['data/testing_result/regionalRes_',num2str(idx),'.mat'], 'AbEvent3');
-    ratios = zeros(1, length(volLabel));
-    [Hs, Ws] = size(volLabel{1});
+    %[Hs, Ws] = size(volLabel{1});
     for ii = 1 : length(volLabel)
-        curFrameTemp = double(AbEvent3(:,:,ii) > optThr);
-        curFrame = boolean(imresize(curFrameTemp ,[Hs, Ws], 'bilinear') > 0);
-        unionSet = sum(sum(curFrame|volLabel{ii}));
-        interSet = sum(sum(curFrame&volLabel{ii}));
-        if unionSet == 0
-            ratios(ii) = 1;
-        else
-            ratios(ii) = interSet/unionSet;
-        end
-        kk_index = kk_index + 1;
-        if sum(sum(volLabel{ii})) > 0
-            gt(kk_index) = 1;
-        else
-            gt(kk_index) = 0;
-        end
-        predict(kk_index) = max(max(AbEvent3(:,:,ii)));
-        
-        
+        predict(200*(idx-1)+ii) = sum(sum(AbEvent3(:,:,ii)));
+        gt(200*(idx-1)+ii) = volLabel(ii);
     end
-    acc(idx) = sum(ratios > overlapThr)/length(ratios);
-    fprintf('Accuracy in %d th video is %.1f %% \n', idx, 100*acc(idx));
 end
-fprintf('our overall accuracy is %.1f %% \n', 100*mean(acc));  
-
-
 
 % Sort an by value; keep idxs.
 [Y,I] = sort(predict,'descend');
 totTrue = sum(gt~=0);
 totFalse = sum(gt==0);
 
-skipevery = 10;
+skipevery = 100;
 i = 0;
 thresh = NaN;
 for jj=1:skipevery:length(Y)
@@ -182,9 +153,12 @@ end
 %plot(FPx,TPy);
 AUC = trapz(FPx,TPy);
 %ylabel(sprintf('AUC=%.3g',AUC));
-fprintf('our auc accuracy is %.1f %% \n', AUC*100);  
+fprintf('our overall accuracy is %.1f %% \n', AUC*100);  
 
- 
+
+
+
+
 
 
 
